@@ -192,6 +192,8 @@ interface TailProperties {
   width: number;
   /** Height of the log window content area */
   height: number;
+  /** The font size of the tail window. Defaults to the font size set in the style editor. */
+  fontSize: number;
 }
 
 /**
@@ -344,17 +346,17 @@ interface CrimeStats {
   time: number;
   /** Description of the crime activity */
   type: string;
-  /** hacking level impact on success change of the crime */
+  /** Impact of hacking level on success chance of the crime */
   hacking_success_weight: number;
-  /** strength level impact on success change of the crime */
+  /** Impact of strength level on success chance of the crime */
   strength_success_weight: number;
-  /** defense level impact on success change of the crime */
+  /** Impact of defense level on success chance of the crime */
   defense_success_weight: number;
-  /** dexterity level impact on success change of the crime */
+  /** Impact of dexterity level on success chance of the crime */
   dexterity_success_weight: number;
-  /** agility level impact on success change of the crime */
+  /** Impact of agility level on success chance of the crime */
   agility_success_weight: number;
-  /** charisma level impact on success change of the crime */
+  /** Impact of charisma level on success chance of the crime */
   charisma_success_weight: number;
   /** hacking exp gained from crime */
   hacking_exp: number;
@@ -728,8 +730,9 @@ interface BitNodeMultipliers {
   /** Influences how much rep the player can gain from factions when selling stolen documents and secrets */
   InfiltrationRep: number;
   /**
-   * Influences how much money can be stolen from a server when the player performs a hack against it through
-   * the Terminal.
+   * Influences how much money the player actually gains when they hack a server via the terminal. This is different
+   * from ScriptHackMoney. When the player hack a server via the terminal, the amount of money in that server is
+   * reduced, but they do not gain that same amount.
    */
   ManualHackMoney: number;
   /** Influence how much it costs to purchase a server */
@@ -742,11 +745,11 @@ interface BitNodeMultipliers {
   PurchasedServerMaxRam: number;
   /** Influences the minimum favor the player must have with a faction before they can donate to gain rep. */
   RepToDonateToFaction: number;
-  /** Influences how much money can be stolen from a server when a script performs a hack against it. */
+  /** Influences how much money is stolen from a server when the player performs a hack against it. */
   ScriptHackMoney: number;
   /**
-   * The amount of money actually gained when a script hacks a server. This is
-   * different than the above because you can reduce the amount of money but
+   * Influences how much money the player actually gains when a script hacks a server. This is different from
+   * ScriptHackMoney. When a script hacks a server, the amount of money in that server is reduced, but the player does
    * not gain that same amount.
    */
   ScriptHackMoneyGain: number;
@@ -855,11 +858,6 @@ interface GangOtherInfoObject {
   power: number;
   /** Gang territory, in decimal form */
   territory: number;
-}
-
-/** @public */
-interface GangOtherInfo {
-  [key: string]: GangOtherInfoObject;
 }
 
 /**
@@ -3445,10 +3443,14 @@ export interface Bladeburner {
    *
    * Returns the remaining count of the specified action.
    *
-   * Note that this is meant to be used for Contracts and Operations.
-   * This function will return ‘Infinity’ for actions such as Training and Field Analysis.
-   * This function will return 1 for BlackOps not yet completed regardless of whether
-   * the player has the required rank to attempt the mission or not.
+   * Note:
+   *
+   * - This function is meant to be used for Contracts and Operations. It returns Infinity for General actions
+   * (Training, Field Analysis, etc.). It returns 1 for BlackOps not yet completed, regardless of whether the player has
+   * the required rank to attempt the mission.
+   *
+   * - With Contracts and Operations, the returned value is a floating-point number. The UI shows the rounded-down
+   * value.
    *
    * @param type - Type of action.
    * @param name - Name of action. Must be an exact match.
@@ -4021,7 +4023,7 @@ export interface Gang {
    *
    * @returns Object containing territory and power information about all gangs.
    */
-  getOtherGangInformation(): GangOtherInfo;
+  getOtherGangInformation(): Record<string, GangOtherInfoObject>;
 
   /**
    * Get information about a specific gang member.
@@ -4288,6 +4290,7 @@ export interface Gang {
 
 /** @public */
 type GoOpponent =
+  | "No AI"
   | "Netburners"
   | "Slum Snakes"
   | "The Black Hand"
@@ -4684,7 +4687,7 @@ export interface Go {
   /**
    * Returns the name of the opponent faction in the current subnet.
    */
-  getOpponent(): GoOpponent | "No AI";
+  getOpponent(): GoOpponent;
 
   /**
    * Gets new IPvGO subnet with the specified size owned by the listed faction, ready for the player to make a move.
@@ -5005,15 +5008,21 @@ export interface Grafting {
   getAugmentationGraftTime(augName: string): number;
 
   /**
-   * Retrieves a list of Augmentations that can be grafted.
+   * Retrieves a list of augmentations that can be grafted.
    *
    * @remarks
    * RAM cost: 5 GB
    *
-   * Note that this function returns a list of currently graftable Augmentations,
-   * based off of the Augmentations that you already own.
+   * Note:
    *
-   * @returns An array of graftable Augmentations.
+   * - This function returns a list of currently graftable augmentations, based on the augmentations that you already
+   * own.
+   *
+   * - This function does not check your current money and prerequisite augmentations. For example, it returns
+   * "Augmented Targeting II" even when you don't have enough money to graft that augmentation or don't have the
+   * prerequisite augmentation ("Augmented Targeting I").
+   *
+   * @returns An array of graftable augmentations.
    */
   getGraftableAugmentations(): string[];
 
@@ -6461,6 +6470,25 @@ export interface NS {
   setTitle(title: string | ReactNode, pid?: number): void;
 
   /**
+   * Set the font size of the tail window of a script.
+   * @remarks
+   * RAM cost: 0 GB
+   *
+   * This overwrites the tail font size and forces an update of the tail window's contents.
+   *
+   * If ran without a filename or pid, this will affect the current script's tail window.
+   *
+   * Otherwise, the PID or filename, hostname/ip, and args… arguments can be used to target the tail window from another script.
+   * Remember that scripts are uniquely identified by both their names and arguments.
+   *
+   * @param pixel - Optional. The new font size in pixels. If omitted, the default tail font size is used.
+   * @param fn - Optional. Filename or PID of the target script. If omitted, the current script is used.
+   * @param host - Optional. Hostname of the target script. Defaults to the server this script is running on. If args are specified, this is not optional.
+   * @param args - Arguments for the target script.
+   */
+  setTailFontSize(pixel?: number, fn?: FilenameOrPID, host?: string, ...args: ScriptArg[]): void;
+
+  /**
    * Get the list of servers connected to a server.
    * @remarks
    * RAM cost: 0.2 GB
@@ -7156,7 +7184,7 @@ export interface NS {
    * ns.tprint(`A purchased server with ${ns.formatRam(ram)} costs $${ns.formatNumber(cost)}`);
    * ```
    * @param ram - Amount of RAM of a potential purchased server, in GB. Must be a power of 2 (2, 4, 8, 16, etc.). Maximum value of 1048576 (2^20).
-   * @returns The cost to purchase a server with the specified amount of ram.
+   * @returns The cost to purchase a server with the specified amount of ram, or returns Infinity if ram is not a valid amount.
    */
   getPurchasedServerCost(ram: number): number;
 
@@ -7206,7 +7234,7 @@ export interface NS {
    *
    * @param hostname - Hostname of the server to upgrade.
    * @param ram - Amount of RAM of the purchased server, in GB. Must be a power of 2 (2, 4, 8, 16, etc.). Maximum value of 1048576 (2^20).
-   * @returns The price to upgrade.
+   * @returns The price to upgrade or -1 if either input is not valid, i.e. hostname is not the name of a purchased server or ram is not a valid amount.
    */
   getPurchasedServerUpgradeCost(hostname: string, ram: number): number;
 
@@ -9669,6 +9697,13 @@ interface AutocompleteData {
   filename: string;
   /** The processes running on the host */
   processes: ProcessInfo[];
+  /**
+   * The raw command string that you have typed until you press [Tab] to use the autocomplete feature.
+   *
+   * For example, if you type `[Space]run test.js[Space][Space][Space][Press tab to use autocomplete]`, "command" will
+   * contain all space characters (1 space character before "run" and 3 space characters after ".js").
+   */
+  command: string;
 }
 
 /**
