@@ -7879,6 +7879,7 @@ export interface NS {
    * ns.tprint(`HackExpGain: ${mults.HackExpGain}`);
    * ```
    * @returns Object containing the current BitNode multipliers.
+   * @throws Error if you do not have Source File 5
    */
   getBitNodeMultipliers(n?: number, lvl?: number): BitNodeMultipliers;
 
